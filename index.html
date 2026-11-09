@@ -2,371 +2,259 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>体测模拟器</title>
+  <title>赛博社畜体测模拟器</title>
   <style>
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background-color: #1e1e1e; /* 极客暗色主题 */
-      color: #d4d4d4;
-      max-width: 600px;
-      margin: 40px auto;
-      padding: 20px;
+    :root {
+      --bg: #121212; --panel: #1e1e1e; --text: #e0e0e0;
+      --green: #4caf50; --red: #f44336; --yellow: #ffeb3b; --blue: #2196f3; --border: #333;
     }
-    h1 { color: #4ec9b0; text-align: center; }
-    
-    /* 顶部状态栏 */
-    .status-bar {
-      display: flex;
-      justify-content: space-between;
-      background: #2d2d2d;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      font-size: 18px;
-      border-left: 5px solid #569cd6;
-    }
-    
-    /* 属性面板 */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      background: #252526;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    .stat-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 5px 10px;
-      background: #333;
-      border-radius: 4px;
-    }
-    .stat-value { color: #ce9178; font-weight: bold; }
-    
-    /* 按钮区 */
-    .actions { margin-bottom: 20px; }
-    .actions-title { margin-bottom: 10px; color: #808080; font-size: 14px;}
-    
-    button {
-      background: #0e639c;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      margin: 5px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: background 0.2s;
-    }
-    button:hover { background: #1177bb; }
-    button:disabled { background: #555; cursor: not-allowed; color: #888; }
-    
-    .next-day-btn {
-      width: 100%;
-      background: #388a34;
-      font-size: 18px;
-      padding: 15px;
-      margin-top: 10px;
-    }
-    .next-day-btn:hover { background: #4ca347; }
-    
-    /* 日志区 */
-    .log-box {
-      background: #1e1e1e;
-      border: 1px solid #333;
-      height: 120px;
-      overflow-y: auto;
-      padding: 10px;
-      font-family: monospace;
-      font-size: 13px;
-      color: #6a9955;
-    }
+    body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); max-width: 900px; margin: 0 auto; padding: 20px; }
+    h1 { text-align: center; color: var(--blue); text-shadow: 0 0 10px rgba(33, 150, 243, 0.5); }
+    .top-bar { display: flex; justify-content: space-between; background: var(--panel); padding: 15px 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
+    .stat-group { display: flex; gap: 20px; }
+    .stat-item { font-size: 16px; font-weight: bold; }
+    .stat-value { color: var(--green); }
+    .stat-value.danger { color: var(--red); }
+    .stat-value.money { color: var(--yellow); }
+    .grid-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+    .panel { background: var(--panel); padding: 20px; border-radius: 8px; border: 1px solid var(--border); }
+    .panel-title { font-size: 18px; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; color: var(--blue); }
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #333; }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-info { flex: 1; }
+    .stat-name { font-weight: bold; font-size: 15px; }
+    .stat-detail { font-size: 12px; color: #888; margin-top: 4px; }
+    .fatigue-bar { width: 100px; height: 8px; background: #333; border-radius: 4px; margin-top: 5px; overflow: hidden; }
+    .fatigue-fill { height: 100%; background: var(--blue); transition: width 0.3s; }
+    .fatigue-fill.warning { background: var(--yellow); }
+    .fatigue-fill.danger { background: var(--red); animation: pulse 1s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    button { background: #333; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+    button:hover { background: #444; }
+    button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn-train { background: var(--blue); border-color: var(--blue); width: 100%; margin-top: 5px; }
+    .btn-train:hover { background: #1976d2; }
+    .btn-next { width: 100%; padding: 15px; font-size: 18px; background: var(--green); border-color: var(--green); margin-top: 20px; }
+    .btn-next:hover { background: #388e3c; }
+    .log-box { height: 200px; overflow-y: auto; background: #000; border: 1px solid #222; padding: 10px; font-family: monospace; font-size: 13px; line-height: 1.5; margin-top: 20px; }
+    .log-msg { color: var(--green); margin-bottom: 4px; }
+    .log-warning { color: var(--yellow); margin-bottom: 4px; }
+    .log-danger { color: var(--red); margin-bottom: 4px; }
+    .log-info { color: #888; margin-bottom: 4px; }
   </style>
 </head>
 <body>
 
-  <h1>🏃 体测模拟器</h1>
+  <h1>💼 赛博社畜体测模拟器</h1>
 
-  <!-- 状态栏 -->
-  <div class="status-bar">
-    <div>📅 第 <span id="dayDisplay">1</span> 天</div>
-    <div>🎂 <span id="ageDisplay">20</span> 岁</div>
-    <div>⚡ 体力: <span id="apDisplay">100</span>/100</div>
-  </div>
-
-  <!-- 身体指标 -->
-  <div class="status-bar" style="border-left-color: #ce9178;">
-    <div>⚖️ 体重: <span id="weightDisplay">65.00</span> kg</div>
-    <div>📊 BMI: <span id="bmiDisplay">21.22</span></div>
-  </div>
-
-   <!-- 六维属性与真实成绩 -->
-  <div class="stats-grid" style="grid-template-columns: 1fr; gap: 8px;">
-    <div class="stat-item">
-      <span>🏃 速度(50m)</span> 
-      <span style="color: #808080; font-size: 12px;" id="actual-sprint">成绩: 0.00s</span>
-      <span class="stat-value"><span id="stat-sprint">0</span> 点 (<span id="score-sprint">0</span>分)</span>
+  <div class="top-bar">
+    <div class="stat-group">
+      <div class="stat-item">📅 第 <span id="dayDisplay" class="stat-value">1</span> 天</div>
+      <div class="stat-item">🎂 <span id="ageDisplay" class="stat-value">20</span> 岁</div>
+      <div class="stat-item">💼 <span id="jobDisplay" class="stat-value">脑力劳动</span></div>
     </div>
-    <div class="stat-item">
-      <span>🫁 耐力(1000m)</span> 
-      <span style="color: #808080; font-size: 12px;" id="actual-run">成绩: 0s</span>
-      <span class="stat-value"><span id="stat-run">0</span> 点 (<span id="score-run">0</span>分)</span>
-    </div>
-    <div class="stat-item">
-      <span>💪 力量(引体)</span> 
-      <span style="color: #808080; font-size: 12px;" id="actual-pullup">成绩: 0个</span>
-      <span class="stat-value"><span id="stat-pullup">0</span> 点 (<span id="score-pullup">0</span>分)</span>
-    </div>
-    <div class="stat-item">
-      <span>🦘 爆发(跳远)</span> 
-      <span style="color: #808080; font-size: 12px;" id="actual-jump">成绩: 0cm</span>
-      <span class="stat-value"><span id="stat-jump">0</span> 点 (<span id="score-jump">0</span>分)</span>
-    </div>
-    <div class="stat-item">
-      <span>🎈 肺活量</span> 
-      <span style="color: #808080; font-size: 12px;" id="actual-lung">成绩: 0ml</span>
-      <span class="stat-value"><span id="stat-lung">0</span> 点 (<span id="score-lung">0</span>分)</span>
-    </div>
-    <div class="stat-item">
-      <span>🤸 柔韧(体前屈)</span> 
-      <span style="color: #808080; font-size: 12px;" id="actual-sit">成绩: 0cm</span>
-      <span class="stat-value"><span id="stat-sit">0</span> 点 (<span id="score-sit">0</span>分)</span>
+    <div class="stat-group">
+      <div class="stat-item">⚡ 体力: <span id="apDisplay" class="stat-value">0</span></div>
+      <div class="stat-item">💰 现金: <span id="moneyDisplay" class="stat-value money">0.00</span> 元</div>
+      <div class="stat-item">🏦 存款: <span id="bankDisplay" class="stat-value">0.00</span> 元</div>
     </div>
   </div>
 
-  <!-- 操作区 -->
-  <div class="actions">
-    <div class="actions-title">💪 进行训练 (消耗 20 体力)</div>
-    <button onclick="train('sprint')">练速度 (50m)</button>
-    <button onclick="train('run')">练耐力 (1000m)</button>
-    <button onclick="train('pullup')">练力量 (引体)</button>
-    <button onclick="train('jump')">练爆发 (跳远)</button>
-    <button onclick="train('lung')">练肺活量</button>
-    <button onclick="train('sit')">练柔韧</button>
-  </div>
+  <div class="grid-layout">
+    <div class="panel">
+      <div class="panel-title">🏋️ 身体面板与训练</div>
+      <div id="statsContainer"></div>
+      <button class="btn-next" onclick="nextDay()">🌙 结束今天，进入下一天</button>
+    </div>
 
-    <!-- 预计体测分数 -->
-  <div class="status-bar" style="border-left-color: #4ec9b0; background: #003b36;">
-    <div style="font-size: 24px; font-weight: bold; width: 100%; text-align: center;">
-      🎯 预计体测总分：<span id="estimatedTotal" style="color: #4ec9b0;">0.00</span>
+    <div class="panel">
+      <div class="panel-title">📊 体测预估与情报</div>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div style="font-size: 14px; color: #888;">当前预估总分</div>
+        <div style="font-size: 36px; font-weight: bold; color: var(--yellow);" id="totalScoreDisplay">0</div>
+      </div>
+
+
+      <div style="font-size: 13px; color: #aaa; line-height: 1.8;">
+        <div>⚖️ 当前体重: <span id="weightDisplay">65.00</span> kg</div>
+        <div>📐 当前 BMI: <span id="bmiDisplay">21.22</span></div>
+        <hr style="border-color: #333; margin: 10px 0;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+          <div>🏃 50米: <span id="actual-sprint" style="color:var(--yellow);">0.00</span>s</div>
+          <div>🫁 1000米: <span id="actual-run" style="color:var(--yellow);">0</span></div>
+          <div>💪 引体: <span id="actual-pullup" style="color:var(--yellow);">0</span>个</div>
+          <div>🦘 跳远: <span id="actual-jump" style="color:var(--yellow);">0</span>cm</div>
+          <div>🎈 肺活量: <span id="actual-lung" style="color:var(--yellow);">0</span>ml</div>
+          <div>🤸 柔韧: <span id="actual-sit" style="color:var(--yellow);">0</span>cm</div>
+        </div>
+      </div>
+
+            <!-- 新增：银行与职业操作台 -->
+      <div class="panel-title" style="margin-top: 20px;">🏦 资产与职场操作</div>
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+        <!-- 银行操作 -->
+        <div style="display: flex; gap: 10px;">
+          <button style="flex: 1; background: #388e3c;" onclick="bankAction('deposit')">存入 500 元</button>
+          <button style="flex: 1; background: #d32f2f;" onclick="bankAction('withdraw')">取出 500 元</button>
+        </div>
+        <!-- 换工作操作 -->
+        <div>
+          <button style="width: 100%; background: #f57c00;" onclick="changeJob('physical')">📦 尝试转职：体力劳动</button>
+          <button style="width: 100%; background: #616161; margin-top: 5px;" onclick="changeJob('mental')">💻 尝试转职：脑力劳动</button>
+          <div style="font-size: 11px; color: #888; margin-top: 5px; text-align: center;">
+            * 体力劳动需力量/耐力≥20，押金 1500 元
+          </div>
+        </div>
+      </div>
+      <div class="panel-title" style="margin-top: 20px;">📜 系统日志</div>
+      <div class="log-box" id="logBox"></div>
     </div>
   </div>
-
-  <!-- 下一天 -->
-  <button class="next-day-btn" onclick="nextDay()">结束今天，进入下一天 🌙</button>
-
-    <!-- 体测成绩单弹窗 (默认隐藏) -->
-  <div id="testModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 999;">
-    <div style="background: #2d2d2d; padding: 30px; border-radius: 12px; border: 2px solid #4ec9b0; width: 400px; text-align: center;">
-      <h2 style="color: #4ec9b0; margin-top: 0;">🏆 年度体测成绩单</h2>
-      <div id="testDetails" style="text-align: left; margin: 20px 0; line-height: 1.8; color: #d4d4d4;"></div>
-      <button onclick="document.getElementById('testModal').style.display='none'" style="background: #4ec9b0; color: #000; font-weight: bold; width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer;">确认收下荣誉点</button>
-    </div>
-  </div>
-<button onclick="resetGame()" style="background: #8b0000; margin-bottom: 10px;">🚨 毁灭人生（清空存档）</button>
-  <!-- 日志输出 -->
-  <div class="actions-title" style="margin-top: 20px;">📜 系统日志</div>
-  <div class="log-box" id="logBox"></div>
 
   <script>
-    // 这里写前端逻辑，通过 fetch 和后端通信
     const API_BASE = 'http://localhost:3000';
+    const STAT_NAMES = { sprint: '🏃 速度 (50m)', run: '🫁 耐力 (1000m)', pullup: '💪 力量 (引体)', jump: '🦘 爆发 (跳远)', lung: '🎈 肺活量', sit: '🤸 柔韧 (体前屈)' };
 
-    // 页面加载时获取一次状态
     async function loadStatus() {
       try {
         const res = await fetch(`${API_BASE}/api/status`);
         const data = await res.json();
         updateUI(data);
-      } catch (err) {
-        log('获取状态失败，请检查后端是否启动。');
-      }
+      } catch (err) { log('获取状态失败，请检查后端。', 'danger'); }
     }
 
-      function updateUI(data) {
-      // 1. 基础面板更新
-      document.getElementById('dayDisplay').innerText = data.day;
-      document.getElementById('ageDisplay').innerText = data.age;
-      document.getElementById('apDisplay').innerText = data.ap;
-      document.getElementById('weightDisplay').innerText = data.weight;
-      document.getElementById('bmiDisplay').innerText = data.bmi;
-      document.getElementById('estimatedTotal').innerText = data.estimatedTotal;
-      
-      // 2. 更新六维属性点
-      for (const key in data.stats) {
-        document.getElementById(`stat-${key}`).innerText = data.stats[key].toFixed(2);
-      }
+    function updateUI(data) {
+      document.getElementById('dayDisplay').innerText = data.day || 1;
+      document.getElementById('ageDisplay').innerText = data.age || 20;
+      document.getElementById('jobDisplay').innerText = data.job === 'mental' ? '💻 脑力劳动' : '📦 体力劳动';
+      const apEl = document.getElementById('apDisplay');
+      apEl.innerText = data.ap !== undefined ? data.ap : 0;
+      apEl.className = 'stat-value ' + (data.ap < 10 ? 'danger' : '');
+      document.getElementById('moneyDisplay').innerText = (data.money || 0).toFixed(2);
+      document.getElementById('bankDisplay').innerText = (data.bank || 0).toFixed(2);
+      document.getElementById('weightDisplay').innerText = data.weight || "65.00";
+      document.getElementById('bmiDisplay').innerText = data.bmi || "0.00";
+      document.getElementById('totalScoreDisplay').innerText = data.estimatedTotal || 0;
 
-      // 3. 更新单项得分
-      for (const key in data.estimatedScores) {
-        document.getElementById(`score-${key}`).innerText = data.estimatedScores[key];
-      }
-
-      // 4. 更新真实成绩与彩蛋
       if (data.actuals) {
-        // 速度
-        const sprintTime = data.actuals.sprint;
-        const sprintEl = document.getElementById('actual-sprint');
-        sprintEl.innerText = `成绩: ${sprintTime.toFixed(2)}s`;
-        if (sprintTime <= 5.60) {
-          sprintEl.style.color = '#ff4d4d'; // 变红
-          sprintEl.innerText += ' (人类极限)';
-        } else {
-          sprintEl.style.color = '#808080'; // 恢复普通颜色
-        }
+        const act = data.actuals;
+        const runSec = act.run || 0;
+        const min = Math.floor(runSec / 60);
+        const sec = Math.floor(runSec % 60);
+        document.getElementById('actual-sprint').innerText = (act.sprint || 0).toFixed(2);
+        document.getElementById('actual-run').innerText = `${min}分${sec.toString().padStart(2,'0')}秒`;
+        document.getElementById('actual-pullup').innerText = act.pullup || 0;
+        document.getElementById('actual-jump').innerText = (act.jump || 0).toFixed(1);
+        document.getElementById('actual-lung').innerText = act.lung || 0;
+        document.getElementById('actual-sit').innerText = (act.sit || 0).toFixed(1);
+      }
 
-        // 耐力
-        const runTime = data.actuals.run;
-        const runEl = document.getElementById('actual-run');
-        runEl.innerText = `成绩: ${formatRunTime(runTime)}`;
-        if (runTime <= 132) {
-          runEl.style.color = '#ff4d4d';
-          runEl.innerText += ' (人类极限)';
-        } else {
-          runEl.style.color = '#808080';
-        }
+      const container = document.getElementById('statsContainer');
+      if (!container || !data.stats) return;
+      container.innerHTML = '';
+      for (const key in data.stats) {
+        const statVal = Number(data.stats[key] || 0).toFixed(2);
+        const score = (data.estimatedScores && data.estimatedScores[key]) ? data.estimatedScores[key] : 0;
+        let fatigue = 0;
+        if (data.fatigue && data.fatigue[key] !== undefined) fatigue = Number(data.fatigue[key]);
+        let fatigueColor = fatigue >= 60 ? 'danger' : (fatigue >= 30 ? 'warning' : '');
+        let widthPercent = Math.min(100, Math.max(0, fatigue / 0.6));
 
-        // 其他项
-        document.getElementById('actual-pullup').innerText = `成绩: ${data.actuals.pullup}个`;
-        document.getElementById('actual-jump').innerText = `成绩: ${data.actuals.jump.toFixed(1)}cm`;
-        document.getElementById('actual-lung').innerText = `成绩: ${data.actuals.lung.toFixed(0)}ml`;
-        document.getElementById('actual-sit').innerText = `成绩: ${data.actuals.sit.toFixed(1)}cm`;
+        const row = document.createElement('div');
+        row.className = 'stat-row';
+        row.innerHTML = `
+          <div class="stat-info">
+            <div class="stat-name">${STAT_NAMES[key]} <span style="color:var(--green); font-size: 12px;">(得分: ${score})</span></div>
+            <div class="stat-detail">属性: ${statVal} | 疲劳: ${fatigue}</div>
+            <div class="fatigue-bar"><div class="fatigue-fill ${fatigueColor}" style="width: ${widthPercent}%"></div></div>
+          </div>
+          <div><button class="btn-train" onclick="train('${key}')" ${data.ap < 10 ? 'disabled' : ''}>训练 (-10体力)</button></div>
+        `;
+        container.appendChild(row);
       }
     }
 
-    // 训练
-        async function train(statName) {
-      // 先检查当前 UI 上的体力是不是已经不够了
-      const currentAp = parseInt(document.getElementById('apDisplay').innerText);
-      if (currentAp < 20) {
-        log(`⚠️ 体力不足，自动进入下一天...`);
-        await nextDay();
-        return;
-      }
-
-      // 简单粗暴地锁住所有训练按钮，防止狂点
-      const buttons = document.querySelectorAll('.actions button');
-      buttons.forEach(btn => btn.disabled = true);
-
+    async function train(statName) {
+      const btn = event.target;
+      btn.disabled = true; btn.innerText = '训练中...';
       try {
-        const res = await fetch(`${API_BASE}/api/train`, {
+        const res = await fetch(`${API_BASE}/api/train`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ statName }) });
+        const data = await res.json();
+        if (data.ok) {
+          if (data.isOvertrained) log(`💥 过度训练！${STAT_NAMES[statName]} 拉伤，属性下降！`, 'danger');
+          else log(`✅ 训练成功：${STAT_NAMES[statName]} +${data.gain}`, 'msg');
+          await loadStatus();
+          if (data.ap < 10) { log('😴 体力耗尽，你累得倒头就睡...', 'warning'); setTimeout(nextDay, 500); }
+        } else { log(`❌ ${data.msg}`, 'danger'); btn.disabled = false; btn.innerText = '训练 (-10体力)'; }
+      } catch (err) { log('请求失败', 'danger'); btn.disabled = false; btn.innerText = '训练 (-10体力)'; }
+    }
+
+    async function nextDay() {
+      document.querySelectorAll('button').forEach(b => b.disabled = true);
+      try {
+        const res = await fetch(`${API_BASE}/api/next-day`, { method: 'POST' });
+        const data = await res.json();
+        if (data.isGameOver) { log(`💀 ${data.msg}`, 'danger'); document.body.style.background = '#300'; return; }
+        log(`🌙 第 ${data.day} 天开始了。${data.isRestDay ? '🏖️ 今天是休息日！' : '💻 今天是工作日。'}`, 'info');
+        if (data.msg) log(data.msg, 'msg');
+        await loadStatus();
+      } catch (err) { log('跨天请求失败', 'danger'); }
+    }
+
+    function log(msg, type = 'info') {
+      const box = document.getElementById('logBox');
+      const p = document.createElement('div');
+      p.className = `log-${type}`;
+      p.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      box.appendChild(p);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // 银行存取款交互
+    async function bankAction(action) {
+      const amount = 500; // 为了简单，我们写死每次操作 500 元
+      const url = action === 'deposit' ? '/api/bank/deposit' : '/api/bank/withdraw';
+      
+      try {
+        const res = await fetch(`${API_BASE}${url}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ statName })
+          body: JSON.stringify({ amount })
         });
         const data = await res.json();
         
         if (data.ok) {
-          // 显示日志
-          if (data.currentScore >= 80) {
-            log(`⚠️ 训练成功：${statName} 仅 +${data.gain}（已达极限）`);
-          } else if (data.currentScore >= 60) {
-            log(`📉 训练成功：${statName} +${data.gain}（收益减半）`);
-          } else {
-            log(`✅ 训练成功：${statName} +${data.gain}`);
-          }
-
-          // 刷新界面状态
+          log(`🏦 成功${action === 'deposit' ? '存入' : '取出'} ${amount} 元。`, 'msg');
           await loadStatus();
-
-          // 【核心逻辑】如果体力不足以支付下一次训练（<20），自动进入下一天
-          if (data.ap < 20) {
-            log(`😴 体力耗尽，你累得倒头就睡...`);
-            setTimeout(async () => {
-              await nextDay();
-            }, 800); // 延迟 0.8 秒，让玩家看清最后一条日志
-          }
-
         } else {
-          log(`❌ 训练失败：${data.msg}`);
+          log(`❌ 银行操作失败：${data.msg}`, 'danger');
         }
       } catch (err) {
-        log('请求失败。');
-      } finally {
-        // 恢复按钮点击（如果进入了 nextDay，nextDay 也会刷新状态）
-        buttons.forEach(btn => btn.disabled = false);
+        log('银行请求失败', 'danger');
       }
     }
 
-    // 结束今天
-       async function nextDay() {
+    // 职业切换交互
+    async function changeJob(newJob) {
       try {
-        const res = await fetch(`${API_BASE}/api/next-day`, { method: 'POST' });
+        const res = await fetch(`${API_BASE}/api/change-job`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newJob })
+        });
         const data = await res.json();
-
-
-                // 如果后端发来了刚刚准备好的项目
-        if (data.justReadyStats && data.justReadyStats.length > 0) {
-          data.justReadyStats.forEach(stat => {
-            log(`🧬 你的【${stat}】肌肉已完成超量恢复！下次训练收益翻倍！`);
-          });
-        }
         
-        if (data.isNewYear) {
-          log(`🎉 岁月流转！你现在 ${data.age} 岁了！年度体测结束！`);
-          
-          // 渲染成绩单弹窗
-          const tr = data.testResult;
-          document.getElementById('testDetails').innerHTML = `
-            <p>🏃 速度: ${tr.scores.sprint} 分</p>
-            <p>🫁 耐力: ${tr.scores.run} 分</p>
-            <p>💪 力量: ${tr.scores.pullup} 分</p>
-            <p>🦘 爆发: ${tr.scores.jump} 分</p>
-            <p>🎈 肺活量: ${tr.scores.lung} 分</p>
-            <p>🤸 柔韧: ${tr.scores.sit} 分</p>
-            <p>⚖️ BMI: ${tr.bmiScore} 分</p>
-            <hr style="border-color: #444;">
-            <h3 style="color: #f0ad4e;">🎯 综合总分: ${tr.totalScore} 分</h3>
-            <h4 style="color: #5cb85c;">⭐ 获得荣誉点: ${data.earnedHonor}</h4>
-          `;
-          
-          document.getElementById('testModal').style.display = 'flex';
-          
+        if (data.ok) {
+          log(`🎉 ${data.msg}`, 'msg');
+          await loadStatus();
         } else {
-          log(`🌙 第 ${data.day} 天开始了，体力已恢复。`);
+          log(`❌ 转职失败：${data.msg}`, 'danger');
         }
-        loadStatus();
       } catch (err) {
-        log('请求失败。');
+        log('转职请求失败', 'danger');
       }
     }
 
-    // 把秒数转换成 X分XX秒 的格式
-    function formatRunTime(seconds) {
-      if (seconds <= 0) return "0分00秒"; // 防止跑出负数
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      // padStart(2, '0') 确保秒数不足两位时前面补0，比如 05 秒
-      return `${mins}分${secs.toString().padStart(2, '0')}秒`;
-    }
-
-
-async function resetGame() {
-  if (!confirm('确定要删档重开吗？你所有的努力将会灰飞烟灭！')) return;
-  try {
-    const res = await fetch(`${API_BASE}/api/reset`, { method: 'POST' });
-    const data = await res.json();
-    if (data.ok) {
-      alert('人生已重启！');
-      loadStatus();
-    }
-  } catch (err) {
-    log('重置失败。');
-  }
-}
-
-    // 往日志框里写字
-    function log(msg) {
-      const box = document.getElementById('logBox');
-      const p = document.createElement('div');
-      p.innerText = `> ${msg}`;
-      box.appendChild(p);
-      box.scrollTop = box.scrollHeight; // 滚动到最底部
-    }
-
-    // 初始化
     loadStatus();
   </script>
 </body>
