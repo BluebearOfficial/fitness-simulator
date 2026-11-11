@@ -97,6 +97,8 @@
           <button style="flex: 1; background: #388e3c;" onclick="bankAction('deposit')">存入 500 元</button>
           <button style="flex: 1; background: #d32f2f;" onclick="bankAction('withdraw')">取出 500 元</button>
         </div>
+<div class="stat-item">🩺 病根: <span id="sickDisplay" class="stat-value danger">0</span></div>
+
         <!-- 换工作操作 -->
         <div>
           <button style="width: 100%; background: #f57c00;" onclick="changeJob('physical')">📦 尝试转职：体力劳动</button>
@@ -104,7 +106,42 @@
           <div style="font-size: 11px; color: #888; margin-top: 5px; text-align: center;">
             * 体力劳动需力量/耐力≥20，押金 1500 元
           </div>
+
+
         </div>
+
+      </div>
+
+
+      <!-- 🛒 赛博商城 -->
+      <div class="panel-title" style="margin-top: 20px;">🛒 赛博商城</div>
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; font-size: 13px;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #252526; padding: 8px; border-radius: 4px;">
+          <span>🏠 廉价租房 (1000元)</span>
+          <button style="padding: 4px 10px; background: #2196f3;" onclick="buyItem('cheapRent')">购买</button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #252526; padding: 8px; border-radius: 4px;">
+          <span>📱 降噪耳塞 (1200元)</span>
+          <button style="padding: 4px 10px; background: #2196f3;" onclick="buyItem('earplugs')">购买</button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #252526; padding: 8px; border-radius: 4px;">
+          <span>🦿 外骨骼护腿 (2000元)</span>
+          <button style="padding: 4px 10px; background: #9c27b0;" onclick="buyItem('exoskeleton')">购买</button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #252526; padding: 8px; border-radius: 4px;">
+          <span>☕ 赛博浓缩液 (500元)</span>
+          <button style="padding: 4px 10px; background: #e91e63;" onclick="buyItem('energyDrink')">购买</button>
+        </div>
+
+      </div>
+
+           <div class="panel-title" style="margin-top: 20px;">🏥 赛博诊所</div>
+      <div style="background: #252526; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+        <button style="width: 100%; background: #00bcd4; color: black; font-weight: bold;" onclick="goToHospital()">🚑 主动就医 (消耗1天，轻症扣10%工资)</button>
       </div>
       <div class="panel-title" style="margin-top: 20px;">📜 系统日志</div>
       <div class="log-box" id="logBox"></div>
@@ -159,6 +196,16 @@
         if (data.fatigue && data.fatigue[key] !== undefined) fatigue = Number(data.fatigue[key]);
         let fatigueColor = fatigue >= 60 ? 'danger' : (fatigue >= 30 ? 'warning' : '');
         let widthPercent = Math.min(100, Math.max(0, fatigue / 0.6));
+
+               const sickVal = data.sickPoints || 0;
+      const sickEl = document.getElementById('sickDisplay');
+      sickEl.innerText = sickVal;
+      
+      if (sickVal > 0) {
+        const penaltyPercent = Math.floor((Math.min(1, sickVal / 2000)) * 100);
+        sickEl.title = `训练收益降低 ${penaltyPercent}%`;
+        sickEl.style.color = sickVal > 500 ? 'red' : 'yellow';
+      }
 
         const row = document.createElement('div');
         row.className = 'stat-row';
@@ -255,6 +302,37 @@
       }
     }
 
+    async function buyItem(itemKey) {
+      try {
+        const res = await fetch(`${API_BASE}/api/buy-item`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemKey })
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+          log(`🛒 ${data.msg}`, 'msg');
+          await loadStatus();
+        } else {
+          log(`❌ 购买失败：${data.msg}`, 'danger');
+        }
+      } catch (err) {
+        log('商城请求失败', 'danger');
+      }
+    }
+
+
+
+       async function goToHospital() {
+      if (!confirm("确定去医院吗？会消耗 1 天时间并扣除医疗费，月底工资扣 10%。")) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/hospital`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) { log(`🏥 ${data.msg}`, 'msg'); await loadStatus(); }
+        else { log(`❌ ${data.msg}`, 'danger'); }
+      } catch (err) { log('就医请求失败', 'danger'); }
+    }
     loadStatus();
   </script>
 </body>

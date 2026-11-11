@@ -27,7 +27,13 @@ const DECAY_DAYS = 14;
 const JOB_CHANGE_COST = 1500;
 const MENTAL_SALARY = 2500;
 const PHYSICAL_SALARY = 4000;
-
+// ===== 商城商品配置 =====
+const SHOP_ITEMS = {
+  cheapRent: { name: '🏠 市郊廉价租房', price: 1000, desc: '基础生活费降至 30 元/天。' },
+  earplugs: { name: '📱 降噪隔音耳塞', price: 1200, desc: '每日体力上限 +5。' },
+  exoskeleton: { name: '🦿 外骨骼护腿', price: 2000, desc: '体力劳动每日工作疲劳降为 10。' },
+  energyDrink: { name: '☕ 赛博浓缩液', price: 500, desc: '立刻清除所有疲劳（消耗品）。' }
+};
 
 // 辅助函数：强制保留两位小数，四舍五入，避免浮点数精度问题
 function roundMoney(num) {
@@ -45,7 +51,18 @@ function createNewPlayer() {
     weight: 65, // 初始体重
     fatigue: { sprint: 0, run: 0, pullup: 0, jump: 0, lung: 0, sit: 0 },
     lastTrainDay: { sprint: 1, run: 1, pullup: 1, jump: 1, lung: 1, sit: 1 },
-    maxTestScore: 0
+    maxTestScore: 0,
+        inventory: {
+      cheapRent: false,
+      earplugs: false,
+      exoskeleton: false,
+      energyDrink: 0 // 消耗品
+    },
+        sickPoints: 0,           // 病根值
+    hospitalizedDays: 0,     // 住院剩余天数
+   
+        sickLeaveLight: false, // 主动就医标记
+    sickLeaveHeavy: false, // 强制送医标记
   };
 }
 
@@ -131,7 +148,9 @@ app.get('/api/status', (req, res) => {
     fatigue: player.fatigue, // ?? 新增：把疲劳值发给前端
     actuals: scoreData.actuals,
     estimatedScores: scoreData.scores, // 包含所有项的真实得分
-    estimatedTotal: scoreData.totalScore
+    estimatedTotal: scoreData.totalScore,
+    sickPoints: player.sickPoints || 0,      // 👈 加上这个
+    hospitalizedDays: player.hospitalizedDays || 0 // 👈 加上这个
   });
 });
 // 训练接口（含软上限与过度训练惩罚）
@@ -158,6 +177,14 @@ app.post('/api/train', (req, res) => {
   let gainMultiplier = 1.0;
   if (currentScore >= 80) gainMultiplier = 0.2;
   else if (currentScore >= 60) gainMultiplier = 0.5;
+
+    // 3. 软上限倍率 + 病根衰减
+ if (player.sickPoints > 0) {
+    const sickPenalty = Math.max(0.5, 1 - (player.sickPoints / 2000));
+    gainMultiplier *= sickPenalty;
+  }
+
+
 
   // 3. 过度训练惩罚判定
   let isOvertrained = false;
@@ -189,124 +216,110 @@ app.post('/api/train', (req, res) => {
   });
 });
 
-// 结束今天（核心经济与体力引擎）
 app.post('/api/next-day', (req, res) => {
   player.day += 1;
-
-  // ===== 1. 日历判定（28天/月，每月第4周长假） =====
-  const dayOfMonth = player.day % 28 === 0 ? 28 : player.day % 28;
-  const dayOfWeek = player.day % 7 === 0 ? 7 : player.day % 7;
-
-  let isRestDay = false;
-  let isHolidayWeek = (dayOfMonth >= 22 && dayOfMonth <= 28);
-
-  if (isHolidayWeek) {
-    isRestDay = (dayOfWeek >= 4); // 上三休四
-  } else {
-    isRestDay = (dayOfWeek === 6 || dayOfWeek === 7); // 正常周末
-  }
-
-  // ===== 2. 动态生活费扣除（max(50, 资产*0.2%)） =====
+  
+  // 1. 扣除每日动态生活费
   const totalAssets = player.money + player.bank;
-  const dailyExpense = Math.max(50, totalAssets * 0.002);
-  player.money -= dailyExpense;
+  const baseRent = (player.inventory && player.inventory.cheapRent) ? 30 : 50;
+  const dailyExpense = roundMoney(Math.max(baseRent, totalAssets * 0.002));
+  player.money = roundMoney(player.money - dailyExpense);
   
   if (player.money < 0) {
     return res.json({ ok: false, isGameOver: true, msg: `💸 破产！你连 ${dailyExpense.toFixed(2)} 元的生活费都交不起了。` });
   }
 
+  let msg = '';
 
- // ===== 2. 银行利息结算 =====
-  let interestEarned = 0;
-  if (player.bank > 0) {
-    // 每天 0.02% 复利
-    interestEarned = roundMoney(player.bank * 0.0002);
-    player.bank = roundMoney(player.bank + interestEarned);
+  // ===== 2. 状态分流：住院中 vs 正常 =====
+  if (player.hospitalizedDays > 0) {
+    player.hospitalizedDays -= 1;
+    player.ap = 0;
+    msg = `🏥 你还在住院休养，剩余 ${player.hospitalizedDays} 天。`;
+
+    // 住院期间恢复疲劳
+    for (const stat in player.fatigue) {
+      player.fatigue[stat] = Math.max(0, player.fatigue[stat] - 15);
+    }
+
+    // 住院期间遇到发薪日，结算病假工资
+    if (player.day % 28 === 0) {
+      const baseSalary = player.job === 'mental' ? MENTAL_SALARY : PHYSICAL_SALARY;
+      let finalSalary = baseSalary;
+      
+      if (player.sickLeaveHeavy) {
+        finalSalary = Math.floor(baseSalary * 0.5);
+        msg += ` 💰 发工资（因重症住院折半）：获得 ${finalSalary} 元。`;
+        player.sickLeaveHeavy = false;
+      } else if (player.sickLeaveLight) {
+        finalSalary = Math.floor(baseSalary * 0.9);
+        msg += ` 💰 发工资（因病假扣除10%）：获得 ${finalSalary} 元。`;
+        player.sickLeaveLight = false;
+      } else {
+        msg += ` 💰 发工资：获得 ${finalSalary} 元。`;
+      }
+      player.money = roundMoney(player.money + finalSalary);
+    }
+    
+    saveGame();
+    return res.json({ ok: true, day: player.day, ap: player.ap, money: player.money, msg });
   }
 
-  // ===== 3. 发薪日与体力恢复 =====
-  let salaryMsg = '';
-  if (dayOfMonth === 28) {
+  // ===== 3. 正常状态（上班/休息） =====
+  const dayOfMonth = player.day % 28 === 0 ? 28 : player.day % 28;
+  const dayOfWeek = player.day % 7 === 0 ? 7 : player.day % 7;
+  let isRestDay = (dayOfMonth >= 22 && dayOfMonth <= 28) ? (dayOfWeek >= 4) : (dayOfWeek === 6 || dayOfWeek === 7);
+
+  // 病根积累（336天后新手保护结束）
+  if (!isRestDay && player.day > 336) {
+    let sickAdd = player.job === 'mental' ? 1 : 3;
+    player.sickPoints += sickAdd;
+    
+    // 触发强制送医
+    if (player.sickPoints >= 1000) {
+      player.hospitalizedDays = 10;
+      player.sickLeaveHeavy = true; // 👈 标记为重症
+      player.sickPoints = 0;
+      player.money -= 8000;
+      if (player.money < 0) {
+        return res.json({ ok: false, isGameOver: true, msg: `💀 积劳成疾被强制送医，因交不起 8000 元医疗费倒在了病床上...` });
+      }
+      msg += ` 🚑 警告：你因积劳成疾被强制送医 10 天，扣除医疗费 8000 元！`;
+      saveGame();
+      return res.json({ ok: true, day: player.day, ap: 0, money: player.money, msg });
+    }
+  }
+
+  // 正常发工资
+  if (player.day % 28 === 0) {
     const salary = player.job === 'mental' ? MENTAL_SALARY : PHYSICAL_SALARY;
-    player.money += salary;
-    salaryMsg = `💰 发工资啦！获得 ${salary} 元。`;
+    player.money = roundMoney(player.money + salary);
+    msg += ` 💰 发工资啦！获得 ${salary} 元。`;
   }
 
-  // 判定体力上限
-  let maxAp = 0;
-  if (player.job === 'mental') {
-    maxAp = isRestDay ? MAX_AP_MENTAL.rest : MAX_AP_MENTAL.work;
-  } else {
-    maxAp = isRestDay ? MAX_AP_PHYSICAL.rest : MAX_AP_PHYSICAL.work;
-  }
+  // 体力恢复 & 工作疲劳（原逻辑保持不变）
+  let maxAp = (player.job === 'mental') ? (isRestDay ? 100 : 20) : (isRestDay ? 60 : 10);
+  if (player.inventory && player.inventory.earplugs) maxAp += 5;
   player.ap = maxAp;
 
-  // ===== 4. 工作带来的疲劳与被动成长 =====
-  let workMsg = '';
   if (!isRestDay && player.job === 'physical') {
     player.stats.pullup += 0.2;
     player.stats.run += 0.2;
-    player.fatigue.pullup += PHYSICAL_FATIGUE_PER_DAY;
-    player.fatigue.run += PHYSICAL_FATIGUE_PER_DAY;
-    workMsg = '📦 你今天干了繁重的体力活，力量/耐力微增，但身体更加疲惫了。';
+    const fAdd = (player.inventory && player.inventory.exoskeleton) ? 10 : 15;
+    player.fatigue.pullup += fAdd;
+    player.fatigue.run += fAdd;
   }
 
-  // ===== 5. 疲劳恢复与超量恢复判定 =====
-  let readyStats = [];
+  // 疲劳恢复 & 衰退判定（原逻辑保持不变）
   for (const stat in player.fatigue) {
-    if (player.lastTrainDay[stat] !== player.day) {
-      player.fatigue[stat] -= FATIGUE_RECOVER_PER_DAY;
-      if (player.fatigue[stat] < 0) player.fatigue[stat] = 0;
-    }
-    // 判定超量恢复（这里简化为疲劳归零且超过2天没练）
-    if (player.fatigue[stat] === 0 && (player.day - player.lastTrainDay[stat] >= 2)) {
-      // 如果前端需要提示，可以在这里记录下来
-    }
+    if (player.lastTrainDay[stat] !== player.day) player.fatigue[stat] = Math.max(0, player.fatigue[stat] - 15);
   }
-
-  // ===== 6. 衰退判定（14天不练） =====
   for (const stat in player.stats) {
-    if (player.day - player.lastTrainDay[stat] > DECAY_DAYS) {
-      player.stats[stat] = Math.max(0, player.stats[stat] * (1 - DECAY_RATE));
-    }
-  }
-
-  // ===== 7. 跨年体测（336天） =====
-  let yearMsg = '';
-  let testResult = null;
-  if (player.day % 336 === 0) {
-    player.age += 1;
-    const scores = calculateAllScores();
-    testResult = scores;
-
-    // 年终奖计算（速算扣除数）
-    let honor = 0;
-    const t = scores.totalScore;
-    if (t < 50) honor = 0;
-    else if (t < 60) honor = Math.floor(t * 10 - 500);
-    else if (t < 70) honor = Math.floor(t * 20 - 1100);
-    else if (t < 80) honor = Math.floor(t * 40 - 2500);
-    else if (t < 90) honor = Math.floor(t * 70 - 4900);
-    else if (t < 100) honor = Math.floor(t * 100 - 7600);
-    else honor = Math.floor(t * 200 - 17600);
-
-    const bonusMoney = honor * 10;
-    player.money += bonusMoney;
-    yearMsg = `🎉 年度体测结束！总分 ${t} 分，获得年终奖 ${bonusMoney} 元！`;
+    if (player.day - player.lastTrainDay[stat] > 14) player.stats[stat] = Math.max(0, player.stats[stat] * 0.98);
   }
 
   saveGame();
-  
-  res.json({
-    ok: true,
-    day: player.day,
-    isRestDay,
-    isHolidayWeek,
-    ap: player.ap,
-    money: Number(player.money.toFixed(2)),
-    msg: `${salaryMsg} ${workMsg} ${yearMsg}`.trim() || (isRestDay ? '🏖️ 今天是休息日。' : '💻 今天是工作日。'),
-    testResult
-  });
+  res.json({ ok: true, day: player.day, isRestDay, ap: player.ap, money: player.money, msg: msg.trim() });
 });
 
 // 换工作
@@ -329,6 +342,35 @@ app.post('/api/change-job', (req, res) => {
   res.json({ ok: true, msg: `成功入职新工作！扣除安置费 ${JOB_CHANGE_COST} 元。`, job: player.job });
 });
 
+// ===== 购买商品 =====
+app.post('/api/buy-item', (req, res) => {
+  const { itemKey } = req.body;
+  const item = SHOP_ITEMS[itemKey];
+  if (!item) return res.json({ ok: false, msg: '没有这个商品' });
+
+  // 永久道具不能重复购买
+  if (itemKey !== 'energyDrink' && player.inventory[itemKey]) {
+    return res.json({ ok: false, msg: '你已拥有该道具' });
+  }
+
+  if (player.money < item.price) {
+    return res.json({ ok: false, msg: '现金不足！' });
+  }
+
+  player.money -= item.price;
+  
+  if (itemKey === 'energyDrink') {
+    player.inventory.energyDrink += 1;
+    // 直接清空所有疲劳
+    for (let k in player.fatigue) player.fatigue[k] = 0;
+  } else {
+    player.inventory[itemKey] = true;
+  }
+
+  saveGame();
+  res.json({ ok: true, msg: `成功购买：${item.name}`, money: player.money });
+});
+
 // ===== 银行系统 =====
 app.post('/api/bank/deposit', (req, res) => {
   const amount = roundMoney(req.body.amount); // 👈 强制两位小数
@@ -346,6 +388,22 @@ app.post('/api/bank/withdraw', (req, res) => {
   player.money += amount;
   saveGame();
   res.json({ ok: true, msg: '取款成功' });
+});
+
+app.post('/api/hospital', (req, res) => {
+  if (player.sickPoints <= 0) return res.json({ ok: false, msg: '身体很健康，不需要去医院。' });
+  const medicalFee = Math.floor(player.sickPoints * 3);
+  if (player.money < medicalFee) return res.json({ ok: false, msg: `连 ${medicalFee} 元的门诊费都交不起。` });
+
+  player.money -= medicalFee;
+  player.sickPoints = 0;
+  
+  // 👈 主动就医：1天，轻症
+  player.hospitalizedDays = 1;
+  player.sickLeaveLight = true; 
+  
+  saveGame();
+  res.json({ ok: true, msg: `🏥 主动就医成功！花费 ${medicalFee} 元，请了 1 天病假（扣10%工资）。` });
 });
 
 app.listen(3000, () => {
