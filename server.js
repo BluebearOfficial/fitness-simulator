@@ -129,6 +129,15 @@ function calculateAllScores() {
   return { actuals, scores, bmi, bmiScore, totalScore: Number(totalScore.toFixed(2)) };
 }
 
+
+// 判定当前季节
+function getSeason(day) {
+  const dayOfYear = day % 336 === 0 ? 336 : day % 336;
+  if (dayOfYear <= 84) return 'spring';   // 春 (1-84)
+  if (dayOfYear <= 168) return 'summer';  // 夏 (85-168)
+  if (dayOfYear <= 252) return 'autumn';  // 秋 (169-252)
+  return 'winter';                        // 冬 (253-336)
+}
 // ================= API 接口 =================
 
 // 获取状态
@@ -150,7 +159,8 @@ app.get('/api/status', (req, res) => {
     estimatedScores: scoreData.scores, // 包含所有项的真实得分
     estimatedTotal: scoreData.totalScore,
     sickPoints: player.sickPoints || 0,      // 👈 加上这个
-    hospitalizedDays: player.hospitalizedDays || 0 // 👈 加上这个
+    hospitalizedDays: player.hospitalizedDays || 0 ,// 👈 加上这个
+        season: getSeason(player.day)
   });
 });
 // 训练接口（含软上限与过度训练惩罚）
@@ -173,35 +183,46 @@ app.post('/api/train', (req, res) => {
   if (statName === 'sit') currentActual = player.stats.sit * 0.5;
   let currentScore = getScoreFromDB(statName, currentActual);
 
-  // 2. 软上限倍率
+  // 1. 软上限
   let gainMultiplier = 1.0;
   if (currentScore >= 80) gainMultiplier = 0.2;
   else if (currentScore >= 60) gainMultiplier = 0.5;
 
-    // 3. 软上限倍率 + 病根衰减
- if (player.sickPoints > 0) {
+  // 2. 超量恢复判定
+  let isSuperComp = false;
+  if (player.supercompensation && player.supercompensation[statName]) {
+    gainMultiplier *= 2; 
+    isSuperComp = true;
+    player.supercompensation[statName] = false; 
+  }
+
+  // 3. 病根惩罚（如果有病根，收益最多砍半）
+  if (player.sickPoints > 0) {
     const sickPenalty = Math.max(0.5, 1 - (player.sickPoints / 2000));
     gainMultiplier *= sickPenalty;
   }
 
-
-
-  // 3. 过度训练惩罚判定
-  let isOvertrained = false;
-  if (player.fatigue[statName] >= OVERTRAIN_THRESHOLD) {
-    isOvertrained = true;
+  // 4. 季节惩罚（夏冬两季，收益打 8 折）
+  let seasonPenalty = 1.0;
+  const season = getSeason(player.day);
+  if (season === 'summer' || season === 'winter') {
+    seasonPenalty = 0.8;
   }
 
-  let finalGain = 2 * gainMultiplier;
-  if (isOvertrained) finalGain = -1; // 负收益
+  // 5. 最终结算（只声明一次！）
+  const baseGain = 2;
+  let finalGain = baseGain * gainMultiplier * seasonPenalty;
 
-  player.stats[statName] += finalGain;
-  if (player.stats[statName] < 0) player.stats[statName] = 0; // 防止属性变负
+  // 6. 过度训练惩罚（绝对覆盖）
+  const isOvertrained = player.fatigue[statName] >= 60;
+  if (isOvertrained) {
+    finalGain = -1; // 强行把收益变成负数
+  }
 
-  // 4. 积累疲劳
+  // 更新属性、疲劳等...
+  player.stats[statName] = Math.max(0, player.stats[statName] + finalGain);
   player.fatigue[statName] += 30;
   player.lastTrainDay[statName] = player.day;
-
   // 5. 体重联动
   if (statName === 'pullup' && !isOvertrained) player.weight += 0.2 * gainMultiplier;
   if (statName === 'run' && !isOvertrained) player.weight -= 0.2 * gainMultiplier;
@@ -219,11 +240,28 @@ app.post('/api/train', (req, res) => {
 app.post('/api/next-day', (req, res) => {
   player.day += 1;
   
-  // 1. 扣除每日动态生活费
+  const season = getSeason(player.day);
+  let seasonMsg = '';
+  if (season === 'summer') seasonMsg = '☀️ 盛夏酷暑，空调电费飙升。';
+  if (season === 'winter') seasonMsg = '❄️ 严冬刺骨，暖气费让你钱包一紧。';
+
+  // 计算基础生活费
   const totalAssets = player.money + player.bank;
   const baseRent = (player.inventory && player.inventory.cheapRent) ? 30 : 50;
-  const dailyExpense = roundMoney(Math.max(baseRent, totalAssets * 0.002));
+  let dailyExpense = Math.max(baseRent, totalAssets * 0.002);
+  
+  // 夏冬生活费 1.5 倍
+  if (season === 'summer' || season === 'winter') {
+    dailyExpense *= 1.5;
+  }
+  dailyExpense = roundMoney(dailyExpense);
   player.money = roundMoney(player.money - dailyExpense);
+
+   let interestEarned = 0;
+  if (player.bank > 0) {
+    interestEarned = roundMoney(player.bank * 0.0002); // 0.02% 日息
+    player.bank = roundMoney(player.bank + interestEarned);
+  }
   
   if (player.money < 0) {
     return res.json({ ok: false, isGameOver: true, msg: `💸 破产！你连 ${dailyExpense.toFixed(2)} 元的生活费都交不起了。` });
@@ -317,7 +355,9 @@ app.post('/api/next-day', (req, res) => {
   for (const stat in player.stats) {
     if (player.day - player.lastTrainDay[stat] > 14) player.stats[stat] = Math.max(0, player.stats[stat] * 0.98);
   }
-
+  // 季节自然体重变化
+  if (season === 'summer') player.weight -= 0.1;
+  if (season === 'winter') player.weight += 0.1;
   saveGame();
   res.json({ ok: true, day: player.day, isRestDay, ap: player.ap, money: player.money, msg: msg.trim() });
 });

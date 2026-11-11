@@ -50,6 +50,7 @@
   <div class="top-bar">
     <div class="stat-group">
       <div class="stat-item">📅 第 <span id="dayDisplay" class="stat-value">1</span> 天</div>
+      <div class="stat-item">🌍 季节: <span id="seasonDisplay" class="stat-value">春</span></div>
       <div class="stat-item">🎂 <span id="ageDisplay" class="stat-value">20</span> 岁</div>
       <div class="stat-item">💼 <span id="jobDisplay" class="stat-value">脑力劳动</span></div>
     </div>
@@ -173,6 +174,15 @@
       document.getElementById('bmiDisplay').innerText = data.bmi || "0.00";
       document.getElementById('totalScoreDisplay').innerText = data.estimatedTotal || 0;
 
+      const seasonNames = { spring: '🌸 春季', summer: '☀️ 夏季', autumn: '🍁 秋季', winter: '❄️ 冬季' };
+      const seasonEl = document.getElementById('seasonDisplay');
+      seasonEl.innerText = seasonNames[data.season] || '未知';
+      
+      // 夏冬季节给个警告色
+      if (data.season === 'summer') seasonEl.style.color = '#ff9800';
+      else if (data.season === 'winter') seasonEl.style.color = '#2196f3';
+      else seasonEl.style.color = '#4caf50'; // 春秋绿色
+      
       if (data.actuals) {
         const act = data.actuals;
         const runSec = act.run || 0;
